@@ -177,6 +177,7 @@ impl eframe::App for EcutApp {
                             || x)
                     {
                         img.cut(rect, ctx);
+                        self.cut_rect = None;
                     }
                     if ui
                         .add(egui::Button::new("🗐 Copy").shortcut_text("C"))
