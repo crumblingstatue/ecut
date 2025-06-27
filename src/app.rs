@@ -127,8 +127,8 @@ impl eframe::App for EcutApp {
         } else {
             // FIXME: egui eats paste events. No way to know if an image was pasted.
             // https://github.com/emilk/egui/issues/4065
-            // As a workaround, we use F5 for "refresh"
-            if ctx.input(|inp| inp.key_pressed(egui::Key::F5)) {
+            // As a workaround, we just use V
+            if ctx.input(|inp| inp.key_pressed(egui::Key::V)) {
                 self.try_paste = true;
             }
         }
@@ -153,21 +153,29 @@ impl eframe::App for EcutApp {
                 if self.img_recv.is_some() {
                     ui.spinner();
                 } else if ui
-                    .add(egui::Button::new("Paste").shortcut_text("F5"))
+                    .add(egui::Button::new("Paste").shortcut_text("V"))
                     .on_hover_text("Ctrl+V is broken thanks to egui :)")
                     .clicked()
                 {
                     self.try_paste = true;
                 }
                 if let Some(img) = &mut self.img {
+                    let [x, c] = ui.input(|inp| {
+                        [inp.key_pressed(egui::Key::X), inp.key_pressed(egui::Key::C)]
+                    });
                     if let Some(rect) = &self.cut_rect
-                        && ui
-                            .add(egui::Button::new("Cut").shortcut_text("Enter"))
+                        && (ui
+                            .add(egui::Button::new("Cut").shortcut_text("X"))
                             .clicked()
+                            || x)
                     {
                         img.cut(rect, ctx);
                     }
-                    if ui.button("Copy to clipboard").clicked() {
+                    if ui
+                        .add(egui::Button::new("Copy").shortcut_text("C"))
+                        .clicked()
+                        || c
+                    {
                         arboard::Clipboard::new()
                             .unwrap()
                             .set_image(img.img.clone())
