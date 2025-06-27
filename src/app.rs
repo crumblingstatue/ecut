@@ -1,19 +1,71 @@
 use {
-    arboard::Clipboard,
+    arboard::{Clipboard, ImageData},
     eframe::egui::{self, ColorImage, TextureHandle, TextureOptions, load::SizedTexture},
-    std::sync::mpsc::TryRecvError,
+    std::{borrow::Cow, sync::mpsc::TryRecvError},
 };
 
 pub struct EcutApp {
-    tex: Option<TextureHandle>,
+    img: Option<ImageBundle>,
     err: Option<String>,
     /// Try to paste image data
     try_paste: bool,
     img_recv: Option<ImgRecv>,
     fit: bool,
+    img_cursor_pos: Option<egui::Pos2>,
+    cut_rect: Option<SourceRect>,
 }
 
-type ImgRecv = std::sync::mpsc::Receiver<Result<TextureHandle, arboard::Error>>;
+struct ImageBundle {
+    /// Arboard image data
+    img: ImageData<'static>,
+    /// Egui texture handle
+    tex: TextureHandle,
+}
+
+impl ImageBundle {
+    fn cut(&mut self, rect: &SourceRect, ctx: &egui::Context) {
+        self.img = resize_image_data(&self.img, rect);
+        self.tex = alloc_tex_from_img(&self.img, ctx);
+    }
+}
+
+fn resize_image_data(input: &ImageData, rect: &SourceRect) -> ImageData<'static> {
+    let mut pixels = vec![0; rect.w as usize * rect.h as usize * 4];
+    copy_pixels(&input.bytes, &mut pixels, rect, input.width as u16);
+    ImageData {
+        width: rect.w as usize,
+        height: rect.h as usize,
+        bytes: Cow::Owned(pixels),
+    }
+}
+
+/// Copy pixels row-by-row from source to destination, at the specified rectangle
+fn copy_pixels(src: &[u8], dst: &mut [u8], rect: &SourceRect, stride: u16) {
+    let mut dx = 0;
+    let mut dy = 0;
+    for rgba in dst.as_chunks_mut().0 {
+        *rgba = index_img(src, rect.x + dx, rect.y + dy, stride);
+        dx += 1;
+        if dx == rect.w {
+            dx = 0;
+            dy += 1;
+        }
+    }
+}
+
+fn index_img(src: &[u8], x: u16, y: u16, stride: u16) -> [u8; 4] {
+    let flat_pos: usize = y as usize * stride as usize + x as usize;
+    src.as_chunks().0[flat_pos]
+}
+
+struct SourceRect {
+    x: u16,
+    y: u16,
+    w: u16,
+    h: u16,
+}
+
+type ImgRecv = std::sync::mpsc::Receiver<Result<ImageBundle, arboard::Error>>;
 
 fn try_load_img_from_clipboard_async(ctx: &egui::Context) -> Result<ImgRecv, arboard::Error> {
     let (send, recv) = std::sync::mpsc::channel();
@@ -26,17 +78,21 @@ fn try_load_img_from_clipboard_async(ctx: &egui::Context) -> Result<ImgRecv, arb
     Ok(recv)
 }
 
+fn alloc_tex_from_img(img: &ImageData, ctx: &egui::Context) -> TextureHandle {
+    let size = [img.width, img.height];
+    let color_img = ColorImage::from_rgba_unmultiplied(size, &img.bytes);
+    ctx.load_texture("", color_img, TextureOptions::default())
+}
+
 fn try_load_img_from_clipboard(
     cb: &mut Clipboard,
     ctx: &egui::Context,
-) -> Result<TextureHandle, arboard::Error> {
+) -> Result<ImageBundle, arboard::Error> {
     match cb.get_image() {
-        Ok(img) => {
-            let size = [img.width, img.height];
-            let color_img = ColorImage::from_rgba_unmultiplied(size, &img.bytes);
-            let tex = ctx.load_texture("", color_img, TextureOptions::default());
-            Ok(tex)
-        }
+        Ok(img) => Ok(ImageBundle {
+            tex: alloc_tex_from_img(&img, ctx),
+            img,
+        }),
         Err(e) => Err(e),
     }
 }
@@ -44,11 +100,13 @@ fn try_load_img_from_clipboard(
 impl EcutApp {
     pub fn new() -> Self {
         Self {
-            tex: None,
+            img: None,
             err: None,
             try_paste: true,
             img_recv: None,
             fit: true,
+            img_cursor_pos: None,
+            cut_rect: None,
         }
     }
 }
@@ -78,7 +136,7 @@ impl eframe::App for EcutApp {
             match recv.try_recv() {
                 Ok(result) => match result {
                     Ok(tex) => {
-                        self.tex = Some(tex);
+                        self.img = Some(tex);
                     }
                     Err(e) => {
                         self.err = Some(e.to_string());
@@ -101,23 +159,91 @@ impl eframe::App for EcutApp {
                 {
                     self.try_paste = true;
                 }
+                if let Some(img) = &mut self.img {
+                    if let Some(rect) = &self.cut_rect
+                        && ui
+                            .add(egui::Button::new("Cut").shortcut_text("Enter"))
+                            .clicked()
+                    {
+                        img.cut(rect, ctx);
+                    }
+                    if ui.button("Copy to clipboard").clicked() {
+                        arboard::Clipboard::new()
+                            .unwrap()
+                            .set_image(img.img.clone())
+                            .unwrap();
+                    }
+                }
+
                 ui.checkbox(&mut self.fit, "Fit");
             });
             if let Some(err) = &self.err {
                 ui.label(format!("Error: {err}"));
             }
         });
-        egui::CentralPanel::default().show(ctx, |ui| match &self.tex {
-            Some(tex) => {
+        egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                if let Some(pos) = &self.img_cursor_pos {
+                    ui.label(format!("Cursor pos: {pos:?}"));
+                }
+                if let Some(rect) = &mut self.cut_rect
+                    && let Some(img) = &self.img
+                {
+                    let [tex_w, tex_h] = img.tex.size().map(|v| v as u16);
+                    ui.label("x");
+                    ui.add(egui::Slider::new(&mut rect.x, 0..=tex_w));
+                    ui.label("y");
+                    ui.add(egui::Slider::new(&mut rect.y, 0..=tex_h));
+                    ui.label("w");
+                    ui.add(egui::Slider::new(&mut rect.w, 0..=tex_w));
+                    ui.label("h");
+                    ui.add(egui::Slider::new(&mut rect.h, 0..=tex_h));
+                }
+            });
+        });
+        egui::CentralPanel::default().show(ctx, |ui| match &self.img {
+            Some(img) => {
                 egui::ScrollArea::both().show(ui, |ui| {
-                    ui.add(egui::Image::new(SizedTexture::new(
-                        tex.id(),
-                        if self.fit {
-                            ui.available_size()
-                        } else {
-                            tex.size_vec2()
-                        },
-                    )));
+                    let re = ui.add(
+                        egui::Image::new(SizedTexture::new(
+                            img.tex.id(),
+                            if self.fit {
+                                ui.available_size()
+                            } else {
+                                img.tex.size_vec2()
+                            },
+                        ))
+                        .sense(egui::Sense::click_and_drag()),
+                    );
+                    if let Some(rect) = &self.cut_rect {
+                        ui.painter_at(re.rect).rect(
+                            egui::Rect {
+                                min: egui::pos2(
+                                    re.rect.min.x + rect.x as f32,
+                                    re.rect.min.y + rect.y as f32,
+                                ),
+                                max: egui::pos2(
+                                    re.rect.min.x + rect.x as f32 + rect.w as f32,
+                                    re.rect.min.y + rect.y as f32 + rect.h as f32,
+                                ),
+                            },
+                            egui::CornerRadius::ZERO,
+                            egui::Color32::from_rgba_unmultiplied(255, 0, 0, 25),
+                            egui::Stroke::new(1.0, egui::Color32::RED),
+                            egui::StrokeKind::Inside,
+                        );
+                    }
+                    if let Some(pos) = re.interact_pointer_pos() {
+                        self.img_cursor_pos = Some(pos);
+                        if re.clicked() {
+                            self.cut_rect = Some(SourceRect {
+                                x: pos.x as u16,
+                                y: pos.y as u16,
+                                w: 100,
+                                h: 100,
+                            });
+                        }
+                    }
                 });
             }
             None => {
