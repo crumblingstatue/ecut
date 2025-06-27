@@ -4,14 +4,28 @@ use {
         NativeOptions,
         egui::{self, ColorImage, TextureHandle, TextureOptions, load::SizedTexture},
     },
+    std::sync::mpsc::TryRecvError,
 };
 
 struct EcutApp {
-    clipboard: Clipboard,
     tex: Option<TextureHandle>,
     err: Option<String>,
     /// Try to paste image data
     try_paste: bool,
+    img_recv: Option<ImgRecv>,
+}
+
+type ImgRecv = std::sync::mpsc::Receiver<Result<TextureHandle, arboard::Error>>;
+
+fn try_load_img_from_clipboard_async(ctx: &egui::Context) -> Result<ImgRecv, arboard::Error> {
+    let (send, recv) = std::sync::mpsc::channel();
+    let mut cb = Clipboard::new()?;
+    let ctx = ctx.clone();
+    std::thread::spawn(move || {
+        send.send(try_load_img_from_clipboard(&mut cb, &ctx))
+            .unwrap();
+    });
+    Ok(recv)
 }
 
 fn try_load_img_from_clipboard(
@@ -35,10 +49,10 @@ fn main() {
         NativeOptions::default(),
         Box::new(move |_cc| {
             Ok(Box::new(EcutApp {
-                clipboard: arboard::Clipboard::new().unwrap(),
                 tex: None,
                 err: None,
                 try_paste: true,
+                img_recv: None,
             }))
         }),
     )
@@ -49,9 +63,9 @@ impl eframe::App for EcutApp {
     fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
         if self.try_paste {
             self.try_paste = false;
-            match try_load_img_from_clipboard(&mut self.clipboard, ctx) {
-                Ok(tex) => {
-                    self.tex = Some(tex);
+            match try_load_img_from_clipboard_async(ctx) {
+                Ok(recv) => {
+                    self.img_recv = Some(recv);
                 }
                 Err(e) => {
                     self.err = Some(e.to_string());
@@ -65,8 +79,29 @@ impl eframe::App for EcutApp {
                 self.try_paste = true;
             }
         }
+        if let Some(recv) = &self.img_recv {
+            match recv.try_recv() {
+                Ok(result) => match result {
+                    Ok(tex) => {
+                        self.tex = Some(tex);
+                    }
+                    Err(e) => {
+                        self.err = Some(e.to_string());
+                    }
+                },
+                Err(TryRecvError::Empty) => {}
+                Err(TryRecvError::Disconnected) => {
+                    self.img_recv = None;
+                }
+            }
+        }
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            ui.label("Press F5 to refresh, ctrl+V is broken thanks to egui :)");
+            ui.horizontal(|ui| {
+                ui.label("Press F5 to refresh, ctrl+V is broken thanks to egui :)");
+                if self.img_recv.is_some() {
+                    ui.spinner();
+                }
+            });
         });
         egui::CentralPanel::default().show(ctx, |ui| match &self.tex {
             Some(tex) => {
