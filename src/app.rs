@@ -264,6 +264,7 @@ impl eframe::App for EcutApp {
                     });
                     if let Some(mut pos) = ptr_pos {
                         pos -= re.rect.min.to_vec2();
+                        pos = egui::pos2(pos.x / h_ratio, pos.y / v_ratio);
                         self.img_cursor_pos = Some(pos);
                         if re.hovered() && any_down && self.click_origin.is_none() {
                             self.click_origin = Some(SourcePos {
