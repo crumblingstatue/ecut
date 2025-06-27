@@ -243,13 +243,17 @@ impl eframe::App for EcutApp {
                     }
                     if let Some(pos) = re.interact_pointer_pos() {
                         self.img_cursor_pos = Some(pos);
-                        if re.clicked() {
+                        if re.drag_started() {
                             self.cut_rect = Some(SourceRect {
                                 x: pos.x as u16,
                                 y: pos.y as u16,
                                 w: 100,
                                 h: 100,
                             });
+                        }
+                        if let Some(rect) = &mut self.cut_rect {
+                            rect.w = pos.x as u16;
+                            rect.h = pos.y as u16;
                         }
                     }
                 });
