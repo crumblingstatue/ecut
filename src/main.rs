@@ -13,6 +13,7 @@ struct EcutApp {
     /// Try to paste image data
     try_paste: bool,
     img_recv: Option<ImgRecv>,
+    fit: bool,
 }
 
 type ImgRecv = std::sync::mpsc::Receiver<Result<TextureHandle, arboard::Error>>;
@@ -53,6 +54,7 @@ fn main() {
                 err: None,
                 try_paste: true,
                 img_recv: None,
+                fit: true,
             }))
         }),
     )
@@ -108,13 +110,22 @@ impl eframe::App for EcutApp {
                     ui.label(err);
                 }
             });
+            ui.horizontal(|ui| {
+                ui.checkbox(&mut self.fit, "Fit");
+            });
         });
         egui::CentralPanel::default().show(ctx, |ui| match &self.tex {
             Some(tex) => {
-                ui.add(egui::Image::new(SizedTexture::new(
-                    tex.id(),
-                    tex.size_vec2(),
-                )));
+                egui::ScrollArea::both().show(ui, |ui| {
+                    ui.add(egui::Image::new(SizedTexture::new(
+                        tex.id(),
+                        if self.fit {
+                            ui.available_size()
+                        } else {
+                            tex.size_vec2()
+                        },
+                    )));
+                });
             }
             None => {
                 ui.label("No image loaded");
