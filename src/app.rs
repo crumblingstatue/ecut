@@ -220,27 +220,33 @@ impl eframe::App for EcutApp {
         egui::CentralPanel::default().show(ctx, |ui| match &self.img {
             Some(img) => {
                 egui::ScrollArea::both().show(ui, |ui| {
+                    let size = if self.fit {
+                        ui.available_size()
+                    } else {
+                        img.tex.size_vec2()
+                    };
+                    let (orig_w, orig_h) = (img.img.width, img.img.height);
+                    let (h_ratio, v_ratio) = (size.x / orig_w as f32, size.y / orig_h as f32);
                     let re = ui.add(
-                        egui::Image::new(SizedTexture::new(
-                            img.tex.id(),
-                            if self.fit {
-                                ui.available_size()
-                            } else {
-                                img.tex.size_vec2()
-                            },
-                        ))
-                        .sense(egui::Sense::click_and_drag()),
+                        egui::Image::new(SizedTexture::new(img.tex.id(), size))
+                            .sense(egui::Sense::click_and_drag()),
+                    );
+                    ui.painter().debug_text(
+                        re.rect.min,
+                        egui::Align2::LEFT_TOP,
+                        egui::Color32::GREEN,
+                        format!("{h_ratio}, {v_ratio}"),
                     );
                     if let Some(rect) = &self.cut_rect {
                         ui.painter_at(re.rect).rect(
                             egui::Rect {
                                 min: egui::pos2(
-                                    re.rect.min.x + rect.x as f32,
-                                    re.rect.min.y + rect.y as f32,
+                                    re.rect.min.x + rect.x as f32 * h_ratio,
+                                    re.rect.min.y + rect.y as f32 * v_ratio,
                                 ),
                                 max: egui::pos2(
-                                    re.rect.min.x + rect.x as f32 + rect.w as f32,
-                                    re.rect.min.y + rect.y as f32 + rect.h as f32,
+                                    re.rect.min.x + (rect.x as f32 + rect.w as f32) * h_ratio,
+                                    re.rect.min.y + (rect.y as f32 + rect.h as f32) * v_ratio,
                                 ),
                             },
                             egui::CornerRadius::ZERO,
