@@ -153,7 +153,7 @@ impl eframe::App for EcutApp {
                 if self.img_recv.is_some() {
                     ui.spinner();
                 } else if ui
-                    .add(egui::Button::new("Paste").shortcut_text("V"))
+                    .add(egui::Button::new("📋 Paste").shortcut_text("V"))
                     .on_hover_text("Ctrl+V is broken thanks to egui :)")
                     .clicked()
                 {
@@ -165,14 +165,14 @@ impl eframe::App for EcutApp {
                     });
                     if let Some(rect) = &self.cut_rect
                         && (ui
-                            .add(egui::Button::new("Cut").shortcut_text("X"))
+                            .add(egui::Button::new("✂ Cut").shortcut_text("X"))
                             .clicked()
                             || x)
                     {
                         img.cut(rect, ctx);
                     }
                     if ui
-                        .add(egui::Button::new("Copy").shortcut_text("C"))
+                        .add(egui::Button::new("🗐 Copy").shortcut_text("C"))
                         .clicked()
                         || c
                     {
