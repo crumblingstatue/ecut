@@ -13,6 +13,12 @@ pub struct EcutApp {
     fit: bool,
     img_cursor_pos: Option<egui::Pos2>,
     cut_rect: Option<SourceRect>,
+    click_origin: Option<SourcePos>,
+}
+
+struct SourcePos {
+    x: u16,
+    y: u16,
 }
 
 struct ImageBundle {
@@ -107,6 +113,7 @@ impl EcutApp {
             fit: true,
             img_cursor_pos: None,
             cut_rect: None,
+            click_origin: None,
         }
     }
 }
@@ -241,19 +248,35 @@ impl eframe::App for EcutApp {
                             egui::StrokeKind::Inside,
                         );
                     }
-                    if let Some(pos) = re.interact_pointer_pos() {
+                    let (ptr_pos, any_down, any_released) = ctx.input(|inp| {
+                        (
+                            inp.pointer.latest_pos(),
+                            inp.pointer.any_down(),
+                            inp.pointer.any_released(),
+                        )
+                    });
+                    if let Some(mut pos) = ptr_pos {
+                        pos -= re.rect.min.to_vec2();
                         self.img_cursor_pos = Some(pos);
-                        if re.drag_started() {
-                            self.cut_rect = Some(SourceRect {
+                        if any_down && self.click_origin.is_none() {
+                            self.click_origin = Some(SourcePos {
                                 x: pos.x as u16,
                                 y: pos.y as u16,
-                                w: 100,
-                                h: 100,
                             });
                         }
-                        if let Some(rect) = &mut self.cut_rect {
-                            rect.w = pos.x as u16;
-                            rect.h = pos.y as u16;
+                        if any_released {
+                            self.click_origin = None;
+                        }
+                        if let Some(orig) = &self.click_origin
+                            && let Some(new_w) = (pos.x as u16).checked_sub(orig.x)
+                            && let Some(new_h) = (pos.y as u16).checked_sub(orig.y)
+                        {
+                            self.cut_rect = Some(SourceRect {
+                                x: orig.x,
+                                y: orig.y,
+                                w: new_w,
+                                h: new_h,
+                            });
                         }
                     }
                 });
