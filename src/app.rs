@@ -231,12 +231,6 @@ impl eframe::App for EcutApp {
                         egui::Image::new(SizedTexture::new(img.tex.id(), size))
                             .sense(egui::Sense::click_and_drag()),
                     );
-                    ui.painter().debug_text(
-                        re.rect.min,
-                        egui::Align2::LEFT_TOP,
-                        egui::Color32::GREEN,
-                        format!("{h_ratio}, {v_ratio}"),
-                    );
                     if let Some(rect) = &self.cut_rect {
                         ui.painter_at(re.rect).rect(
                             egui::Rect {
