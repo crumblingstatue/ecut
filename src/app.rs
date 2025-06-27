@@ -259,7 +259,7 @@ impl eframe::App for EcutApp {
                     if let Some(mut pos) = ptr_pos {
                         pos -= re.rect.min.to_vec2();
                         self.img_cursor_pos = Some(pos);
-                        if any_down && self.click_origin.is_none() {
+                        if re.hovered() && any_down && self.click_origin.is_none() {
                             self.click_origin = Some(SourcePos {
                                 x: pos.x as u16,
                                 y: pos.y as u16,
