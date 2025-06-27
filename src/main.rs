@@ -102,17 +102,18 @@ impl eframe::App for EcutApp {
             ui.horizontal(|ui| {
                 if self.img_recv.is_some() {
                     ui.spinner();
-                    ui.separator();
+                } else if ui
+                    .add(egui::Button::new("Paste").shortcut_text("F5"))
+                    .on_hover_text("Ctrl+V is broken thanks to egui :)")
+                    .clicked()
+                {
+                    self.try_paste = true;
                 }
-                ui.label("Press F5 to refresh, ctrl+V is broken thanks to egui :)");
-                if let Some(err) = &self.err {
-                    ui.separator();
-                    ui.label(err);
-                }
-            });
-            ui.horizontal(|ui| {
                 ui.checkbox(&mut self.fit, "Fit");
             });
+            if let Some(err) = &self.err {
+                ui.label(format!("Error: {err}"));
+            }
         });
         egui::CentralPanel::default().show(ctx, |ui| match &self.tex {
             Some(tex) => {
