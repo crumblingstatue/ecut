@@ -63,6 +63,7 @@ impl eframe::App for EcutApp {
     fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
         if self.try_paste {
             self.try_paste = false;
+            self.err = None;
             match try_load_img_from_clipboard_async(ctx) {
                 Ok(recv) => {
                     self.img_recv = Some(recv);
@@ -97,9 +98,14 @@ impl eframe::App for EcutApp {
         }
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.label("Press F5 to refresh, ctrl+V is broken thanks to egui :)");
                 if self.img_recv.is_some() {
                     ui.spinner();
+                    ui.separator();
+                }
+                ui.label("Press F5 to refresh, ctrl+V is broken thanks to egui :)");
+                if let Some(err) = &self.err {
+                    ui.separator();
+                    ui.label(err);
                 }
             });
         });
@@ -112,9 +118,6 @@ impl eframe::App for EcutApp {
             }
             None => {
                 ui.label("No image loaded");
-                if let Some(err) = &self.err {
-                    ui.label(err);
-                }
             }
         });
     }
