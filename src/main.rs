@@ -17,7 +17,7 @@ fn main() {
     eframe::run_native(
         "ecut",
         native_opts,
-        Box::new(move |_cc| Ok(Box::new(EcutApp::new()))),
+        Box::new(move |_cc| Ok(Box::new(EcutApp::default()))),
     )
     .unwrap();
 }

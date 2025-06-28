@@ -11,16 +11,34 @@ mod ui {
     pub mod top_panel;
 }
 
+#[derive(Default)]
 pub struct EcutApp {
     img: Option<ImageBundle>,
-    err: Option<String>,
-    /// Try to paste image data
-    try_paste: bool,
     img_recv: Option<ImgRecv>,
+    ui_state: UiState,
+}
+
+struct UiState {
     fit: bool,
     img_cursor_pos: Option<egui::Pos2>,
     cut_rect: Option<SrcRect>,
     click_origin: Option<SrcPos>,
+    err: Option<String>,
+    /// Try to paste image data
+    try_paste: bool,
+}
+
+impl Default for UiState {
+    fn default() -> Self {
+        Self {
+            fit: true,
+            img_cursor_pos: Default::default(),
+            cut_rect: Default::default(),
+            click_origin: Default::default(),
+            err: Default::default(),
+            try_paste: Default::default(),
+        }
+    }
 }
 
 struct ImageBundle {
@@ -69,32 +87,17 @@ fn try_load_img_from_clipboard(
     }
 }
 
-impl EcutApp {
-    pub fn new() -> Self {
-        Self {
-            img: None,
-            err: None,
-            try_paste: true,
-            img_recv: None,
-            fit: true,
-            img_cursor_pos: None,
-            cut_rect: None,
-            click_origin: None,
-        }
-    }
-}
-
 impl eframe::App for EcutApp {
     fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
-        if self.try_paste {
-            self.try_paste = false;
-            self.err = None;
+        if self.ui_state.try_paste {
+            self.ui_state.try_paste = false;
+            self.ui_state.err = None;
             match try_load_img_from_clipboard_async(ctx) {
                 Ok(recv) => {
                     self.img_recv = Some(recv);
                 }
                 Err(e) => {
-                    self.err = Some(e.to_string());
+                    self.ui_state.err = Some(e.to_string());
                 }
             }
         } else {
@@ -102,7 +105,7 @@ impl eframe::App for EcutApp {
             // https://github.com/emilk/egui/issues/4065
             // As a workaround, we just use V
             if ctx.input(|inp| inp.key_pressed(egui::Key::V)) {
-                self.try_paste = true;
+                self.ui_state.try_paste = true;
             }
         }
         if let Some(recv) = &self.img_recv {
@@ -112,7 +115,7 @@ impl eframe::App for EcutApp {
                         self.img = Some(tex);
                     }
                     Err(e) => {
-                        self.err = Some(e.to_string());
+                        self.ui_state.err = Some(e.to_string());
                     }
                 },
                 Err(TryRecvError::Empty) => {}

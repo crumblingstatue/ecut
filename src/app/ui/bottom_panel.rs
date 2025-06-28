@@ -2,10 +2,10 @@ use {crate::app::EcutApp, eframe::egui};
 
 pub fn ui(app: &mut EcutApp, ui: &mut egui::Ui) {
     ui.horizontal(|ui| {
-        if let Some(pos) = &app.img_cursor_pos {
+        if let Some(pos) = &app.ui_state.img_cursor_pos {
             ui.label(format!("Cursor pos: {pos:?}"));
         }
-        if let Some(rect) = &mut app.cut_rect
+        if let Some(rect) = &mut app.ui_state.cut_rect
             && let Some(img) = &app.img
         {
             let [tex_w, tex_h] = img.tex.size().map(|v| v as u16);
