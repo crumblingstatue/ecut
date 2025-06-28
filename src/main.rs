@@ -1,3 +1,5 @@
+#![warn(clippy::pedantic, clippy::nursery, unused_qualifications)]
+
 use {
     crate::app::EcutApp,
     eframe::{NativeOptions, egui},

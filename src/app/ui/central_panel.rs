@@ -34,12 +34,12 @@ fn image_ui(img: &ImageBundle, ui_state: &mut UiState, ui: &mut egui::Ui) {
             ui.painter_at(re.rect).rect(
                 egui::Rect {
                     min: egui::pos2(
-                        re.rect.min.x + rect.x as f32 * h_ratio,
-                        re.rect.min.y + rect.y as f32 * v_ratio,
+                        f32::from(rect.x).mul_add(h_ratio, re.rect.min.x),
+                        f32::from(rect.y).mul_add(v_ratio, re.rect.min.y),
                     ),
                     max: egui::pos2(
-                        re.rect.min.x + (rect.x as f32 + rect.w as f32) * h_ratio,
-                        re.rect.min.y + (rect.y as f32 + rect.h as f32) * v_ratio,
+                        (f32::from(rect.x) + f32::from(rect.w)).mul_add(h_ratio, re.rect.min.x),
+                        (f32::from(rect.y) + f32::from(rect.h)).mul_add(v_ratio, re.rect.min.y),
                     ),
                 },
                 egui::CornerRadius::ZERO,

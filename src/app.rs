@@ -32,11 +32,11 @@ impl Default for UiState {
     fn default() -> Self {
         Self {
             fit: true,
-            img_cursor_pos: Default::default(),
-            cut_rect: Default::default(),
-            click_origin: Default::default(),
-            err: Default::default(),
-            try_paste: Default::default(),
+            img_cursor_pos: None,
+            cut_rect: None,
+            click_origin: None,
+            err: None,
+            try_paste: false,
         }
     }
 }
@@ -88,7 +88,7 @@ fn try_load_img_from_clipboard(
 }
 
 impl eframe::App for EcutApp {
-    fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if self.ui_state.try_paste {
             self.ui_state.try_paste = false;
             self.ui_state.err = None;
