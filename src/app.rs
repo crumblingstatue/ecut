@@ -1,9 +1,15 @@
 use {
     crate::geom::{SrcPos, SrcRect},
     arboard::{Clipboard, ImageData},
-    eframe::egui::{self, ColorImage, TextureHandle, TextureOptions, load::SizedTexture},
+    eframe::egui::{self, ColorImage, TextureHandle, TextureOptions},
     std::sync::mpsc::TryRecvError,
 };
+
+mod ui {
+    pub mod bottom_panel;
+    pub mod central_panel;
+    pub mod top_panel;
+}
 
 pub struct EcutApp {
     img: Option<ImageBundle>,
@@ -116,136 +122,13 @@ impl eframe::App for EcutApp {
             }
         }
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                if self.img_recv.is_some() {
-                    ui.spinner();
-                } else if ui
-                    .add(egui::Button::new("📋 Paste").shortcut_text("V"))
-                    .on_hover_text("Ctrl+V is broken thanks to egui :)")
-                    .clicked()
-                {
-                    self.try_paste = true;
-                }
-                if let Some(img) = &mut self.img {
-                    let [x, c] = ui.input(|inp| {
-                        [inp.key_pressed(egui::Key::X), inp.key_pressed(egui::Key::C)]
-                    });
-                    if let Some(rect) = &self.cut_rect
-                        && (ui
-                            .add(egui::Button::new("✂ Cut").shortcut_text("X"))
-                            .clicked()
-                            || x)
-                    {
-                        img.cut(rect, ctx);
-                        self.cut_rect = None;
-                    }
-                    if ui
-                        .add(egui::Button::new("🗐 Copy").shortcut_text("C"))
-                        .clicked()
-                        || c
-                    {
-                        arboard::Clipboard::new()
-                            .unwrap()
-                            .set_image(img.img.clone())
-                            .unwrap();
-                    }
-                }
-
-                ui.checkbox(&mut self.fit, "Fit");
-            });
-            if let Some(err) = &self.err {
-                ui.label(format!("Error: {err}"));
-            }
+            ui::top_panel::ui(self, ui);
         });
         egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                if let Some(pos) = &self.img_cursor_pos {
-                    ui.label(format!("Cursor pos: {pos:?}"));
-                }
-                if let Some(rect) = &mut self.cut_rect
-                    && let Some(img) = &self.img
-                {
-                    let [tex_w, tex_h] = img.tex.size().map(|v| v as u16);
-                    ui.label("x");
-                    ui.add(egui::Slider::new(&mut rect.x, 0..=tex_w).drag_value_speed(1.0));
-                    ui.label("y");
-                    ui.add(egui::Slider::new(&mut rect.y, 0..=tex_h).drag_value_speed(1.0));
-                    ui.label("w");
-                    ui.add(egui::Slider::new(&mut rect.w, 0..=tex_w).drag_value_speed(1.0));
-                    ui.label("h");
-                    ui.add(egui::Slider::new(&mut rect.h, 0..=tex_h).drag_value_speed(1.0));
-                }
-            });
+            ui::bottom_panel::ui(self, ui);
         });
-        egui::CentralPanel::default().show(ctx, |ui| match &self.img {
-            Some(img) => {
-                egui::ScrollArea::both().show(ui, |ui| {
-                    let size = if self.fit {
-                        ui.available_size()
-                    } else {
-                        img.tex.size_vec2()
-                    };
-                    let (orig_w, orig_h) = (img.img.width, img.img.height);
-                    let (h_ratio, v_ratio) = (size.x / orig_w as f32, size.y / orig_h as f32);
-                    let re = ui.add(
-                        egui::Image::new(SizedTexture::new(img.tex.id(), size))
-                            .sense(egui::Sense::click_and_drag()),
-                    );
-                    if let Some(rect) = &self.cut_rect {
-                        ui.painter_at(re.rect).rect(
-                            egui::Rect {
-                                min: egui::pos2(
-                                    re.rect.min.x + rect.x as f32 * h_ratio,
-                                    re.rect.min.y + rect.y as f32 * v_ratio,
-                                ),
-                                max: egui::pos2(
-                                    re.rect.min.x + (rect.x as f32 + rect.w as f32) * h_ratio,
-                                    re.rect.min.y + (rect.y as f32 + rect.h as f32) * v_ratio,
-                                ),
-                            },
-                            egui::CornerRadius::ZERO,
-                            egui::Color32::from_rgba_unmultiplied(255, 0, 0, 25),
-                            egui::Stroke::new(1.0, egui::Color32::RED),
-                            egui::StrokeKind::Inside,
-                        );
-                    }
-                    let (ptr_pos, any_down, any_released) = ctx.input(|inp| {
-                        (
-                            inp.pointer.latest_pos(),
-                            inp.pointer.any_down(),
-                            inp.pointer.any_released(),
-                        )
-                    });
-                    if let Some(mut pos) = ptr_pos {
-                        pos -= re.rect.min.to_vec2();
-                        pos = egui::pos2(pos.x / h_ratio, pos.y / v_ratio);
-                        self.img_cursor_pos = Some(pos);
-                        if re.hovered() && any_down && self.click_origin.is_none() {
-                            self.click_origin = Some(SrcPos {
-                                x: pos.x as u16,
-                                y: pos.y as u16,
-                            });
-                        }
-                        if any_released {
-                            self.click_origin = None;
-                        }
-                        if let Some(orig) = &self.click_origin
-                            && let Some(new_w) = (pos.x as u16).checked_sub(orig.x)
-                            && let Some(new_h) = (pos.y as u16).checked_sub(orig.y)
-                        {
-                            self.cut_rect = Some(SrcRect {
-                                x: orig.x,
-                                y: orig.y,
-                                w: new_w,
-                                h: new_h,
-                            });
-                        }
-                    }
-                });
-            }
-            None => {
-                ui.label("No image loaded");
-            }
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui::central_panel::ui(self, ui);
         });
     }
 }

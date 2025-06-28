@@ -1,0 +1,80 @@
+use {
+    crate::{
+        app::EcutApp,
+        geom::{SrcPos, SrcRect},
+    },
+    eframe::egui::{self, load::SizedTexture},
+};
+
+pub fn ui(app: &mut EcutApp, ui: &mut egui::Ui) {
+    match &app.img {
+        Some(img) => {
+            egui::ScrollArea::both().show(ui, |ui| {
+                let size = if app.fit {
+                    ui.available_size()
+                } else {
+                    img.tex.size_vec2()
+                };
+                let (orig_w, orig_h) = (img.img.width, img.img.height);
+                let (h_ratio, v_ratio) = (size.x / orig_w as f32, size.y / orig_h as f32);
+                let re = ui.add(
+                    egui::Image::new(SizedTexture::new(img.tex.id(), size))
+                        .sense(egui::Sense::click_and_drag()),
+                );
+                if let Some(rect) = &app.cut_rect {
+                    ui.painter_at(re.rect).rect(
+                        egui::Rect {
+                            min: egui::pos2(
+                                re.rect.min.x + rect.x as f32 * h_ratio,
+                                re.rect.min.y + rect.y as f32 * v_ratio,
+                            ),
+                            max: egui::pos2(
+                                re.rect.min.x + (rect.x as f32 + rect.w as f32) * h_ratio,
+                                re.rect.min.y + (rect.y as f32 + rect.h as f32) * v_ratio,
+                            ),
+                        },
+                        egui::CornerRadius::ZERO,
+                        egui::Color32::from_rgba_unmultiplied(255, 0, 0, 25),
+                        egui::Stroke::new(1.0, egui::Color32::RED),
+                        egui::StrokeKind::Inside,
+                    );
+                }
+                let (ptr_pos, any_down, any_released) = ui.input(|inp| {
+                    (
+                        inp.pointer.latest_pos(),
+                        inp.pointer.any_down(),
+                        inp.pointer.any_released(),
+                    )
+                });
+                if let Some(mut pos) = ptr_pos {
+                    pos -= re.rect.min.to_vec2();
+                    pos = egui::pos2(pos.x / h_ratio, pos.y / v_ratio);
+                    app.img_cursor_pos = Some(pos);
+                    if re.hovered() && any_down && app.click_origin.is_none() {
+                        app.click_origin = Some(SrcPos {
+                            x: pos.x as u16,
+                            y: pos.y as u16,
+                        });
+                    }
+                    if any_released {
+                        app.click_origin = None;
+                    }
+                    if let Some(orig) = &app.click_origin
+                        && let Some(new_w) = (pos.x as u16).checked_sub(orig.x)
+                        && let Some(new_h) = (pos.y as u16).checked_sub(orig.y)
+                    {
+                        app.cut_rect = Some(SrcRect {
+                            x: orig.x,
+                            y: orig.y,
+                            w: new_w,
+                            h: new_h,
+                        });
+                    }
+                }
+            });
+        }
+        None => {
+            ui.label("No image loaded");
+        }
+    }
+}
