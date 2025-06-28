@@ -1,5 +1,5 @@
 use {
-    crate::geom::{SourcePos, SourceRect},
+    crate::geom::{SrcPos, SrcRect},
     arboard::{Clipboard, ImageData},
     eframe::egui::{self, ColorImage, TextureHandle, TextureOptions, load::SizedTexture},
     std::sync::mpsc::TryRecvError,
@@ -13,8 +13,8 @@ pub struct EcutApp {
     img_recv: Option<ImgRecv>,
     fit: bool,
     img_cursor_pos: Option<egui::Pos2>,
-    cut_rect: Option<SourceRect>,
-    click_origin: Option<SourcePos>,
+    cut_rect: Option<SrcRect>,
+    click_origin: Option<SrcPos>,
 }
 
 struct ImageBundle {
@@ -25,7 +25,7 @@ struct ImageBundle {
 }
 
 impl ImageBundle {
-    fn cut(&mut self, rect: &SourceRect, ctx: &egui::Context) {
+    fn cut(&mut self, rect: &SrcRect, ctx: &egui::Context) {
         self.img = crate::img_manip::crop_image_data(&self.img, rect);
         self.tex = alloc_tex_from_img(&self.img, ctx);
     }
@@ -221,7 +221,7 @@ impl eframe::App for EcutApp {
                         pos = egui::pos2(pos.x / h_ratio, pos.y / v_ratio);
                         self.img_cursor_pos = Some(pos);
                         if re.hovered() && any_down && self.click_origin.is_none() {
-                            self.click_origin = Some(SourcePos {
+                            self.click_origin = Some(SrcPos {
                                 x: pos.x as u16,
                                 y: pos.y as u16,
                             });
@@ -233,7 +233,7 @@ impl eframe::App for EcutApp {
                             && let Some(new_w) = (pos.x as u16).checked_sub(orig.x)
                             && let Some(new_h) = (pos.y as u16).checked_sub(orig.y)
                         {
-                            self.cut_rect = Some(SourceRect {
+                            self.cut_rect = Some(SrcRect {
                                 x: orig.x,
                                 y: orig.y,
                                 w: new_w,
