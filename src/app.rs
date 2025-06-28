@@ -1,7 +1,8 @@
 use {
+    crate::geom::{SourcePos, SourceRect},
     arboard::{Clipboard, ImageData},
     eframe::egui::{self, ColorImage, TextureHandle, TextureOptions, load::SizedTexture},
-    std::{borrow::Cow, sync::mpsc::TryRecvError},
+    std::sync::mpsc::TryRecvError,
 };
 
 pub struct EcutApp {
@@ -16,11 +17,6 @@ pub struct EcutApp {
     click_origin: Option<SourcePos>,
 }
 
-struct SourcePos {
-    x: u16,
-    y: u16,
-}
-
 struct ImageBundle {
     /// Arboard image data
     img: ImageData<'static>,
@@ -30,45 +26,9 @@ struct ImageBundle {
 
 impl ImageBundle {
     fn cut(&mut self, rect: &SourceRect, ctx: &egui::Context) {
-        self.img = resize_image_data(&self.img, rect);
+        self.img = crate::img_manip::crop_image_data(&self.img, rect);
         self.tex = alloc_tex_from_img(&self.img, ctx);
     }
-}
-
-fn resize_image_data(input: &ImageData, rect: &SourceRect) -> ImageData<'static> {
-    let mut pixels = vec![0; rect.w as usize * rect.h as usize * 4];
-    copy_pixels(&input.bytes, &mut pixels, rect, input.width as u16);
-    ImageData {
-        width: rect.w as usize,
-        height: rect.h as usize,
-        bytes: Cow::Owned(pixels),
-    }
-}
-
-/// Copy pixels row-by-row from source to destination, at the specified rectangle
-fn copy_pixels(src: &[u8], dst: &mut [u8], rect: &SourceRect, stride: u16) {
-    let mut dx = 0;
-    let mut dy = 0;
-    for rgba in dst.as_chunks_mut().0 {
-        *rgba = index_img(src, rect.x + dx, rect.y + dy, stride);
-        dx += 1;
-        if dx == rect.w {
-            dx = 0;
-            dy += 1;
-        }
-    }
-}
-
-fn index_img(src: &[u8], x: u16, y: u16, stride: u16) -> [u8; 4] {
-    let flat_pos: usize = y as usize * stride as usize + x as usize;
-    src.as_chunks().0[flat_pos]
-}
-
-struct SourceRect {
-    x: u16,
-    y: u16,
-    w: u16,
-    h: u16,
 }
 
 type ImgRecv = std::sync::mpsc::Receiver<Result<ImageBundle, arboard::Error>>;

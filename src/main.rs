@@ -4,6 +4,8 @@ use {
 };
 
 mod app;
+mod geom;
+mod img_manip;
 
 fn main() {
     let native_opts = NativeOptions {
