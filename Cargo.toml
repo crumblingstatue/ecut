@@ -5,7 +5,7 @@ edition = "2024"
 rust-version = "1.88"
 
 [dependencies]
-arboard = "3.5.0"
+arboard = "3.6.0"
 eframe.version = "0.31.1"
 eframe.default-features = false
 eframe.features = ["default_fonts", "glow", "wayland", "x11"]
